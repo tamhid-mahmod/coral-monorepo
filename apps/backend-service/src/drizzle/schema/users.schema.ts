@@ -1,0 +1,14 @@
+import { pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
+
+// ----------------------------------------------------------------------
+
+export const users = pgTable('user', {
+  id: uuid('id')
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: varchar('name', { length: 100 }).notNull(),
+  email: varchar('email', { length: 255 }).unique().notNull(),
+  emailVerified: timestamp('emailVerified', { mode: 'date' }),
+  password: text('password'),
+  image: text('image'),
+});

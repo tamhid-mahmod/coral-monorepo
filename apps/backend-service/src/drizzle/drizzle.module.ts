@@ -3,7 +3,7 @@ import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
-import * as schema from './schema';
+import * as schema from './schema/schema';
 
 // ----------------------------------------------------------------------
 
