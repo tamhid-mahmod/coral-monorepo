@@ -1,8 +1,9 @@
 import * as crypto from 'crypto';
 import {
+  Injectable,
   ConflictException,
   ForbiddenException,
-  Injectable,
+  BadRequestException,
 } from '@nestjs/common';
 
 import { redis } from '@/common/lib/redis';
@@ -10,6 +11,7 @@ import { sendEmail } from '@/common/lib/resend';
 
 import { UserService } from '@/user/user.service';
 import { CreateUserDto } from '@/user/dto/create-user.dto';
+import { VerifyUserDto } from '@/user/dto/verify-user.dto';
 
 // ----------------------------------------------------------------------
 
@@ -83,5 +85,47 @@ export class AuthService {
     });
     await redis.set(`otp:${email}`, otp, 'EX', 600); // 10 minutes validity
     await redis.set(`otp_cooldown:${email}`, 'true', 'EX', 60);
+  }
+
+  async verifyAccount(verifyUserDto: VerifyUserDto) {
+    const user = await this.userService.findByEmail(verifyUserDto.email);
+
+    if (user && user.emailVerified) {
+      throw new ConflictException('This account has already been verified.');
+    }
+
+    await this.verifyOtp(verifyUserDto.email, verifyUserDto.otp);
+    await this.userService.create(verifyUserDto);
+
+    return { message: 'Your account has been registered successfully.' };
+  }
+
+  async verifyOtp(email: string, otp: string) {
+    const storedOtp = await redis.get(`otp:${email}`);
+
+    if (!storedOtp) {
+      throw new BadRequestException('OTP is invalid or has expired.');
+    }
+
+    const faliedAttemptsKey = `otp_attempts:${email}`;
+    const failedAttempts = parseInt(
+      (await redis.get(faliedAttemptsKey)) || '0',
+    );
+
+    if (storedOtp !== otp) {
+      if (failedAttempts >= 3) {
+        await redis.set(`otp_lock:${email}`, 'locked', 'EX', 1800); // Lock for 30 minutes
+        await redis.del(`otp:${email}`, faliedAttemptsKey);
+
+        throw new ForbiddenException(
+          'Too many failed attempts. Your account is locked for 30 minutes.',
+        );
+      }
+      await redis.set(faliedAttemptsKey, failedAttempts + 1, 'EX', 300);
+
+      throw new BadRequestException('Incorrect OTP!');
+    }
+
+    await redis.del(`otp:${email}`, faliedAttemptsKey);
   }
 }
