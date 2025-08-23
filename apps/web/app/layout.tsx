@@ -2,6 +2,10 @@ import { Geist, Geist_Mono } from "next/font/google";
 
 import "@workspace/ui/globals.css";
 
+import { AuthProvider } from "@/auth/context";
+
+// ----------------------------------------------------------------------
+
 const fontSans = Geist({
   subsets: ["latin"],
   variable: "--font-sans",
@@ -11,6 +15,8 @@ const fontMono = Geist_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
 });
+
+// ----------------------------------------------------------------------
 
 export default function RootLayout({
   children,
@@ -22,7 +28,7 @@ export default function RootLayout({
       <body
         className={`${fontSans.variable} ${fontMono.variable} font-sans antialiased `}
       >
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

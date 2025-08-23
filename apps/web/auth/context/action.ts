@@ -2,7 +2,14 @@
 
 import axios, { endpoints } from "@/lib/axios";
 
+import { setSession } from "./session";
+
 // ----------------------------------------------------------------------
+
+export type SignInParams = {
+  email: string;
+  password: string;
+};
 
 export type SignUpParams = {
   email: string;
@@ -15,6 +22,44 @@ export type VerifyAccountParams = SignUpParams & {
 };
 
 // ----------------------------------------------------------------------
+
+/** **************************************
+ * Sign in
+ *************************************** */
+
+export const signInWithPassword = async ({
+  email,
+  password,
+}: SignInParams): Promise<void> => {
+  try {
+    const params = { email, password };
+
+    const res = await axios.post(endpoints.auth.signIn, params);
+
+    const { accessToken, refreshToken, id, name } = res.data;
+
+    if (!accessToken) {
+      throw new Error("Access token not found in response");
+    }
+
+    if (!refreshToken) {
+      throw new Error("Refresh token not found in response");
+    }
+
+    await setSession({
+      user: {
+        id,
+        name,
+      },
+      accessToken,
+      refreshToken,
+    });
+    // setSession(accessToken);
+  } catch (error) {
+    console.error("Error during sign in:", error);
+    throw error;
+  }
+};
 
 /** **************************************
  * Sign up

@@ -109,7 +109,6 @@ export function SignUpView() {
       setTimer(60);
       startResendTimer();
     } catch (error) {
-      console.error(error);
       const feedbackMessage = getErrorMessage(error);
       setErrorMessage(feedbackMessage);
     }
@@ -125,7 +124,6 @@ export function SignUpView() {
       setUser(null);
       router.push(paths.auth.signIn);
     } catch (error) {
-      console.error(error);
       const feedbackMessage = getErrorMessage(error);
       setErrorMessage(feedbackMessage);
     }
