@@ -21,6 +21,7 @@ import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth/jwt-auth.guard';
 import { LocalAuthGuard } from './guards/local-auth/local-auth.guard';
 import { RefreshAuthGuard } from './guards/refresh-auth/refresh-auth.guard';
+import { ActiveUser } from './decorators/active-user.decorator';
 
 // ----------------------------------------------------------------------
 
@@ -68,5 +69,11 @@ export class AuthController {
   @Post('/refresh-token')
   refreshToken(@Request() req) {
     return this.authService.refreshToken(req.user.id, req.user.name);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('/me')
+  me(@ActiveUser() user) {
+    return { user };
   }
 }
