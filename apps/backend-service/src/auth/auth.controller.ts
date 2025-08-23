@@ -3,12 +3,24 @@ import {
   ApiForbiddenResponse,
   ApiResponse,
 } from '@nestjs/swagger';
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
 
 import { CreateUserDto } from '@/user/dto/create-user.dto';
 import { VerifyUserDto } from '@/user/dto/verify-user.dto';
 
 import { AuthService } from './auth.service';
+import { JwtAuthGuard } from './guards/jwt-auth/jwt-auth.guard';
+import { LocalAuthGuard } from './guards/local-auth/local-auth.guard';
+import { RefreshAuthGuard } from './guards/refresh-auth/refresh-auth.guard';
 
 // ----------------------------------------------------------------------
 
@@ -38,5 +50,23 @@ export class AuthController {
   @ApiForbiddenResponse({ description: 'Forbidden.' })
   verifyAccount(@Body() verifyUserDto: VerifyUserDto) {
     return this.authService.verifyAccount(verifyUserDto);
+  }
+
+  @UseGuards(LocalAuthGuard)
+  @Post('/sign-in')
+  login(@Request() req) {
+    return this.authService.login(req.user.id, req.user.name);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('/protected')
+  getAll(@Request() req) {
+    return `Now you can access this protected API. ${req.user.id}`;
+  }
+
+  @UseGuards(RefreshAuthGuard)
+  @Post('/refresh-token')
+  refreshToken(@Request() req) {
+    return this.authService.refreshToken(req.user.id, req.user.name);
   }
 }

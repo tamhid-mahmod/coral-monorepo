@@ -1,9 +1,14 @@
 import * as crypto from 'crypto';
+import { verify } from 'argon2';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigType } from '@nestjs/config';
 import {
   Injectable,
   ConflictException,
   ForbiddenException,
   BadRequestException,
+  UnauthorizedException,
+  Inject,
 } from '@nestjs/common';
 
 import { redis } from '@/common/lib/redis';
@@ -13,11 +18,20 @@ import { UserService } from '@/user/user.service';
 import { CreateUserDto } from '@/user/dto/create-user.dto';
 import { VerifyUserDto } from '@/user/dto/verify-user.dto';
 
+import type { AuthJwtPayload } from './types/auth-jwtPayload';
+
+import refreshConfig from './config/refresh.config';
+
 // ----------------------------------------------------------------------
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly userService: UserService) {}
+  constructor(
+    private readonly userService: UserService,
+    private readonly jwtService: JwtService,
+    @Inject(refreshConfig.KEY)
+    private refreshTokenConfig: ConfigType<typeof refreshConfig>,
+  ) {}
 
   async registerUser(createUserDto: CreateUserDto) {
     const user = await this.userService.findByEmail(createUserDto.email);
@@ -127,5 +141,78 @@ export class AuthService {
     }
 
     await redis.del(`otp:${email}`, faliedAttemptsKey);
+  }
+
+  async validateLocalUser(email: string, password: string) {
+    const user = await this.userService.findByEmail(email);
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials!');
+    }
+
+    const isPasswordMatched = await verify(user.password!, password);
+
+    if (!isPasswordMatched) {
+      throw new UnauthorizedException('Invalid credentials!');
+    }
+
+    return { id: user.id, name: user.name };
+  }
+
+  async login(userId: string, name: string) {
+    const { accessToken, refreshToken } = await this.generateTokens(userId);
+
+    return {
+      id: userId,
+      name,
+      accessToken,
+      refreshToken,
+    };
+  }
+
+  async generateTokens(userId: string) {
+    const payload: AuthJwtPayload = { sub: userId };
+
+    const [accessToken, refreshToken] = await Promise.all([
+      this.jwtService.signAsync(payload),
+      this.jwtService.signAsync(payload, this.refreshTokenConfig),
+    ]);
+
+    return { accessToken, refreshToken };
+  }
+
+  async validateJwtUser(userId: string) {
+    const user = await this.userService.findOne(userId);
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials!');
+    }
+
+    return {
+      id: user.id,
+    };
+  }
+
+  async validateRefreshToken(userId: string) {
+    const user = await this.userService.findOne(userId);
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials!');
+    }
+
+    return {
+      id: user.id,
+    };
+  }
+
+  async refreshToken(userId: string, name: string) {
+    const { accessToken, refreshToken } = await this.generateTokens(userId);
+
+    return {
+      id: userId,
+      name,
+      accessToken,
+      refreshToken,
+    };
   }
 }
