@@ -35,4 +35,13 @@ export class UserService {
 
     return user;
   }
+
+  async findOne(userId: string) {
+    const [user] = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId));
+
+    return user;
+  }
 }
