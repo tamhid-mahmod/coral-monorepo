@@ -17,11 +17,14 @@ import {
 import { CreateUserDto } from '@/user/dto/create-user.dto';
 import { VerifyUserDto } from '@/user/dto/verify-user.dto';
 
+import { ActiveUser } from './decorators/active-user.decorator';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth/jwt-auth.guard';
 import { LocalAuthGuard } from './guards/local-auth/local-auth.guard';
 import { RefreshAuthGuard } from './guards/refresh-auth/refresh-auth.guard';
-import { ActiveUser } from './decorators/active-user.decorator';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { VerifyForgotOtpDto } from './dto/verify-forgot-otp.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 // ----------------------------------------------------------------------
 
@@ -75,5 +78,20 @@ export class AuthController {
   @Get('/me')
   me(@ActiveUser() user) {
     return { user };
+  }
+
+  @Post('/forgot-password')
+  async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
+    return await this.authService.forgotPassword(forgotPasswordDto);
+  }
+
+  @Post('/verify-forgot-otp')
+  async verifyForgotOtp(@Body() verifyForgotOtp: VerifyForgotOtpDto) {
+    return await this.authService.verifyForgotOtp(verifyForgotOtp);
+  }
+
+  @Post('/reset-password')
+  async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+    return this.authService.resetPassword(resetPasswordDto);
   }
 }

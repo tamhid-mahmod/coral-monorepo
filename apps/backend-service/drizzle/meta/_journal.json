@@ -22,6 +22,20 @@
       "when": 1755772521017,
       "tag": "0002_rich_mulholland_black",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1756041210866,
+      "tag": "0003_heavy_ikaris",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1756041399769,
+      "tag": "0004_cute_black_widow",
+      "breakpoints": true
     }
   ]
 }

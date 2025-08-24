@@ -2,12 +2,13 @@ import type { DrizzleDB } from '@/drizzle/types/drizzle';
 
 import { eq } from 'drizzle-orm';
 import { hash } from 'argon2';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 
 import { users } from '@/drizzle/schema/users.schema';
 import { DRIZZLE } from '@/drizzle/drizzle.module';
 
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 // ----------------------------------------------------------------------
 
@@ -43,5 +44,19 @@ export class UserService {
       .where(eq(users.id, userId));
 
     return user;
+  }
+
+  async update(userId: string, updateUserDto: UpdateUserDto) {
+    const [updatedUser] = await this.db
+      .update(users)
+      .set(updateUserDto)
+      .where(eq(users.id, userId))
+      .returning();
+
+    if (!updatedUser) {
+      throw new NotFoundException(`User with ID ${userId} not found`);
+    }
+
+    return updatedUser;
   }
 }

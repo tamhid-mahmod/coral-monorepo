@@ -1,26 +1,30 @@
 import * as crypto from 'crypto';
-import { verify } from 'argon2';
+import Redis from 'ioredis';
+import { hash, verify } from 'argon2';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigType } from '@nestjs/config';
 import {
   Injectable,
   ConflictException,
-  ForbiddenException,
-  BadRequestException,
   UnauthorizedException,
   Inject,
+  NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 
-import { redis } from '@/common/lib/redis';
-import { sendEmail } from '@/common/lib/resend';
-
+import { REDIS } from '@/redis/redis.module';
+import { OtpService } from '@/otp/otp.service';
 import { UserService } from '@/user/user.service';
 import { CreateUserDto } from '@/user/dto/create-user.dto';
 import { VerifyUserDto } from '@/user/dto/verify-user.dto';
 
 import type { AuthJwtPayload } from './types/auth-jwtPayload';
+import type { ResetTokenPayload } from './types/reset-tokenPayload';
 
 import refreshConfig from './config/refresh.config';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { VerifyForgotOtpDto } from './dto/verify-forgot-otp.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 // ----------------------------------------------------------------------
 
@@ -29,6 +33,8 @@ export class AuthService {
   constructor(
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
+    private readonly otpService: OtpService,
+    @Inject(REDIS) private readonly redis: Redis,
     @Inject(refreshConfig.KEY)
     private refreshTokenConfig: ConfigType<typeof refreshConfig>,
   ) {}
@@ -42,63 +48,16 @@ export class AuthService {
       );
     }
 
-    await this.checkOtpRestrictions(createUserDto.email);
-    await this.trackOtpRequests(createUserDto.email);
-    await this.sendOtp(
+    await this.otpService.checkRateLimit(createUserDto.email);
+    await this.otpService.trackFailedOtpAttempt(createUserDto.email);
+    await this.otpService.sendOtpViaEmail(
       createUserDto.name,
       createUserDto.email,
+      'Email verification code',
       'email-verification',
     );
 
     return { message: 'OTP sent to email. Please verify your account.' };
-  }
-
-  async checkOtpRestrictions(email: string) {
-    if (await redis.get(`otp_lock:${email}`)) {
-      throw new ForbiddenException(
-        'Account locked due to multiple failed attepts! Try again after 30 minutes.',
-      );
-    }
-
-    if (await redis.get(`otp_spam_lock:${email}`)) {
-      throw new ForbiddenException(
-        'Too many OTP requests! Please wait 1hour before requesting again.',
-      );
-    }
-
-    if (await redis.get(`otp_cooldown:${email}`)) {
-      throw new ForbiddenException(
-        'Please wait 1minute before requesting a new OTP.',
-      );
-    }
-  }
-
-  async trackOtpRequests(email: string) {
-    const otpRequestKey = `otp_request_count:${email}`;
-    const otpRequests = parseInt((await redis.get(otpRequestKey)) || '0');
-
-    if (otpRequests >= 3) {
-      await redis.set(`otp_spam_lock:${email}`, 'locked', 'EX', 3600); // Lock for 1hour
-
-      throw new ForbiddenException(
-        'Too many OTP requests! Please wait 1hour before requesting again.',
-      );
-    }
-
-    await redis.set(otpRequestKey, otpRequests + 1, 'EX', 3600); // Track requests for 1hour
-  }
-
-  async sendOtp(name: string, email: string, template: string) {
-    const otp = crypto.randomInt(0, 1_000_000).toString().padStart(6, '0');
-
-    await sendEmail(email, `Email verification code: ${otp}`, template, {
-      userName: name,
-      appName: 'Coral',
-      otp,
-      supportEmail: 'support@coral.com',
-    });
-    await redis.set(`otp:${email}`, otp, 'EX', 600); // 10 minutes validity
-    await redis.set(`otp_cooldown:${email}`, 'true', 'EX', 60);
   }
 
   async verifyAccount(verifyUserDto: VerifyUserDto) {
@@ -108,39 +67,10 @@ export class AuthService {
       throw new ConflictException('This account has already been verified.');
     }
 
-    await this.verifyOtp(verifyUserDto.email, verifyUserDto.otp);
+    await this.otpService.verifyOtp(verifyUserDto.email, verifyUserDto.otp);
     await this.userService.create(verifyUserDto);
 
     return { message: 'Your account has been registered successfully.' };
-  }
-
-  async verifyOtp(email: string, otp: string) {
-    const storedOtp = await redis.get(`otp:${email}`);
-
-    if (!storedOtp) {
-      throw new BadRequestException('OTP is invalid or has expired.');
-    }
-
-    const faliedAttemptsKey = `otp_attempts:${email}`;
-    const failedAttempts = parseInt(
-      (await redis.get(faliedAttemptsKey)) || '0',
-    );
-
-    if (storedOtp !== otp) {
-      if (failedAttempts >= 3) {
-        await redis.set(`otp_lock:${email}`, 'locked', 'EX', 1800); // Lock for 30 minutes
-        await redis.del(`otp:${email}`, faliedAttemptsKey);
-
-        throw new ForbiddenException(
-          'Too many failed attempts. Your account is locked for 30 minutes.',
-        );
-      }
-      await redis.set(faliedAttemptsKey, failedAttempts + 1, 'EX', 300);
-
-      throw new BadRequestException('Incorrect OTP!');
-    }
-
-    await redis.del(`otp:${email}`, faliedAttemptsKey);
   }
 
   async validateLocalUser(email: string, password: string) {
@@ -218,5 +148,111 @@ export class AuthService {
       accessToken,
       refreshToken,
     };
+  }
+
+  async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
+    const user = await this.userService.findByEmail(forgotPasswordDto.email);
+
+    if (!user) {
+      throw new NotFoundException('An account with this email not exists!');
+    }
+
+    await this.otpService.checkRateLimit(forgotPasswordDto.email);
+    await this.otpService.trackFailedOtpAttempt(forgotPasswordDto.email);
+    await this.otpService.sendOtpViaEmail(
+      user.name,
+      forgotPasswordDto.email,
+      'Reset password code',
+      'forgot-password',
+    );
+
+    return {
+      message: 'OTP sent to email. Please verify this is your account.',
+    };
+  }
+
+  async verifyForgotOtp(verifyForgotOtp: VerifyForgotOtpDto) {
+    const user = await this.userService.findByEmail(verifyForgotOtp.email);
+
+    if (!user) {
+      return {
+        message:
+          'If an account exists with this email, you will receive a password reset OTP.',
+      };
+    }
+
+    await this.otpService.verifyOtp(verifyForgotOtp.email, verifyForgotOtp.otp);
+
+    const resetSessionToken = crypto.randomBytes(32).toString('hex');
+    const resetSessionExpiry = 15; // 15 minutes
+    const resetSessionKey = `pwd_reset:session:${resetSessionToken}`;
+
+    await this.redis.setex(
+      resetSessionKey,
+      resetSessionExpiry * 60,
+      JSON.stringify({
+        email: verifyForgotOtp.email,
+        verifiedAt: new Date().toISOString(),
+      }),
+    );
+
+    return {
+      message: 'OTP verified successfully.',
+      resetToken: resetSessionToken,
+    };
+  }
+
+  async resetPassword(resetPasswordDto: ResetPasswordDto) {
+    const resetSessionKey = `pwd_reset:session:${resetPasswordDto.resetToken}`;
+    const resetSessionData = await this.redis.get(resetSessionKey);
+
+    if (!resetSessionData) {
+      throw new ForbiddenException('Invalid or expired reset session!');
+    }
+
+    const { email, verifiedAt } = JSON.parse(
+      resetSessionData,
+    ) as ResetTokenPayload;
+
+    // Check if session is still valid
+    const expiresAt = new Date(verifiedAt).getTime() + 15 * 60 * 1000;
+
+    if (Date.now() > expiresAt) {
+      await this.redis.del(resetSessionKey);
+      throw new ForbiddenException('Reset session has expired');
+    }
+
+    const user = await this.userService.findByEmail(email);
+
+    if (!user) {
+      throw new NotFoundException('Account with this email not exists!');
+    }
+
+    // Check if new password is different from current
+    const isSameAsCurrent = await verify(
+      user.password!,
+      resetPasswordDto.newPassword,
+    );
+
+    if (isSameAsCurrent) {
+      throw new ForbiddenException(
+        'New password must be different from current password!',
+      );
+    }
+
+    const hashedPassword = await hash(resetPasswordDto.newPassword);
+    await this.userService.update(user.id, {
+      password: hashedPassword,
+      lastPasswordChanged: new Date(),
+    });
+
+    // Invalidate all existing sessions
+
+    // Remove the reset session
+    await this.redis.del(resetSessionKey);
+
+    // Send confirmation email
+
+    return { message: 'Password reset successfully' };
   }
 }
