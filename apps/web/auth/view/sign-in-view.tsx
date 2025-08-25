@@ -29,6 +29,7 @@ import { FormSocials } from "../components/form-socials";
 import { useAuthContext } from "../hooks";
 import { getErrorMessage } from "../utils";
 import { signInWithPassword } from "../context";
+import { FormHead } from "../components/form-head";
 
 // ----------------------------------------------------------------------
 
@@ -175,13 +176,10 @@ export function SignInView() {
           </div>
 
           <div className="sm:w-[420px]">
-            <h5 className="text-2xl font-semibold tracking-tight mb-2">
-              Welcome Back!
-            </h5>
-            <p className="text-sm text-gray-700 mb-4">
-              Login to your account using your preferred social network
-              authentication
-            </p>
+            <FormHead
+              title="Welcome Back!"
+              description="Login to your account using your preferred social network authentication"
+            />
 
             <FormSocials disabled={isSubmitting} />
 

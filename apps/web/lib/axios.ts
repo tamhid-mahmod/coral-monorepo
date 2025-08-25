@@ -129,5 +129,8 @@ export const endpoints = {
     signUp: "/api/auth/sign-up",
     verifyAccount: "/api/auth/verify-account",
     refreshToken: "/api/auth/refresh-token",
+    forgotPassword: "/api/auth/forgot-password",
+    verifyForgotOtp: "/api/auth/verify-forgot-otp",
+    resetPassword: "/api/auth/reset-password",
   },
 };

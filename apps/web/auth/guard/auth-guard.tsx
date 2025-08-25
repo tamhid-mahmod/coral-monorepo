@@ -5,6 +5,8 @@ import { useState, useEffect } from "react";
 import { paths } from "@/routes/paths";
 import { useRouter, usePathname } from "@/routes/hooks";
 
+import { LoadingScreen } from "@/components/loading-screen";
+
 import { useAuthContext } from "../hooks";
 
 // ----------------------------------------------------------------------
@@ -47,9 +49,9 @@ export function AuthGuard({ children }: AuthGuardProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authenticated, loading]);
 
-  // if (isChecking) {
-  //   return <p>redirecting....</p>;
-  // }
+  if (isChecking) {
+    return <LoadingScreen />;
+  }
 
   return <>{children}</>;
 }
