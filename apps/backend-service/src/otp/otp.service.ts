@@ -61,7 +61,7 @@ export class OtpService {
   ): Promise<void> {
     const otp = crypto.randomInt(0, 1_000_000).toString().padStart(6, '0');
 
-    await sendEmail(email, `${subject}: ${otp}`, template, {
+    await sendEmail(email, `${otp} is your ${subject}`, template, {
       userName: name,
       appName: 'Coral',
       otp,

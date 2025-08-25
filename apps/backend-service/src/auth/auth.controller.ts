@@ -1,9 +1,4 @@
 import {
-  ApiConflictResponse,
-  ApiForbiddenResponse,
-  ApiResponse,
-} from '@nestjs/swagger';
-import {
   Body,
   Controller,
   Get,
@@ -15,16 +10,27 @@ import {
 } from '@nestjs/common';
 
 import { CreateUserDto } from '@/user/dto/create-user.dto';
-import { VerifyUserDto } from '@/user/dto/verify-user.dto';
 
-import { ActiveUser } from './decorators/active-user.decorator';
+import {
+  ApiForgotPasswordDoc,
+  ApiLoginDoc,
+  ApiMeDoc,
+  ApiRefreshTokenDoc,
+  ApiResetPasswordDoc,
+  ApiSignUpDoc,
+  ApiVerifyAccountDoc,
+  ApiVerifyForgotOtpDoc,
+} from '@/docs/auth';
+
 import { AuthService } from './auth.service';
-import { JwtAuthGuard } from './guards/jwt-auth/jwt-auth.guard';
-import { LocalAuthGuard } from './guards/local-auth/local-auth.guard';
-import { RefreshAuthGuard } from './guards/refresh-auth/refresh-auth.guard';
-import { ForgotPasswordDto } from './dto/forgot-password.dto';
-import { VerifyForgotOtpDto } from './dto/verify-forgot-otp.dto';
-import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ActiveUser, type ActiveUserType } from './decorators';
+import { JwtAuthGuard, LocalAuthGuard, RefreshAuthGuard } from './guards';
+import {
+  ResetPasswordDto,
+  ForgotPasswordDto,
+  VerifyForgotOtpDto,
+  VerifyUserDto,
+} from './dto';
 
 // ----------------------------------------------------------------------
 
@@ -34,63 +40,53 @@ export class AuthController {
 
   @Post('/sign-up')
   @HttpCode(HttpStatus.OK)
-  @ApiResponse({
-    status: 200,
-    description: 'OTP sent to email. Please verify your account.',
-  })
-  @ApiForbiddenResponse({ description: 'Forbidden.' })
+  @ApiSignUpDoc()
   registerUser(@Body() createUserDto: CreateUserDto) {
     return this.authService.registerUser(createUserDto);
   }
 
   @Post('/verify-account')
-  @ApiResponse({
-    status: 201,
-    description: 'Your account has been registered successfully.',
-  })
-  @ApiConflictResponse({
-    description: 'This account has already been verified.',
-  })
-  @ApiForbiddenResponse({ description: 'Forbidden.' })
+  @ApiVerifyAccountDoc()
   verifyAccount(@Body() verifyUserDto: VerifyUserDto) {
     return this.authService.verifyAccount(verifyUserDto);
   }
 
   @UseGuards(LocalAuthGuard)
   @Post('/sign-in')
-  login(@Request() req) {
+  @HttpCode(HttpStatus.OK)
+  @ApiLoginDoc()
+  login(@Request() req: Express.Request) {
     return this.authService.login(req.user.id, req.user.name);
-  }
-
-  @UseGuards(JwtAuthGuard)
-  @Get('/protected')
-  getAll(@Request() req) {
-    return `Now you can access this protected API. ${req.user.id}`;
   }
 
   @UseGuards(RefreshAuthGuard)
   @Post('/refresh-token')
-  refreshToken(@Request() req) {
+  @ApiRefreshTokenDoc()
+  refreshToken(@Request() req: Express.Request) {
     return this.authService.refreshToken(req.user.id, req.user.name);
   }
 
   @UseGuards(JwtAuthGuard)
   @Get('/me')
-  me(@ActiveUser() user) {
+  @ApiMeDoc()
+  me(@ActiveUser() user: ActiveUserType) {
     return { user };
   }
 
   @Post('/forgot-password')
+  @ApiForgotPasswordDoc()
   async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
     return await this.authService.forgotPassword(forgotPasswordDto);
   }
 
   @Post('/verify-forgot-otp')
+  @ApiVerifyForgotOtpDoc()
   async verifyForgotOtp(@Body() verifyForgotOtp: VerifyForgotOtpDto) {
     return await this.authService.verifyForgotOtp(verifyForgotOtp);
   }
 
   @Post('/reset-password')
+  @ApiResetPasswordDoc()
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
     return this.authService.resetPassword(resetPasswordDto);
   }
