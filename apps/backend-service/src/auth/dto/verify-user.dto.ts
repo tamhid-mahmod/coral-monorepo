@@ -1,7 +1,7 @@
 import { IsString } from 'class-validator';
 import { ApiProperty, IntersectionType } from '@nestjs/swagger';
 
-import { CreateUserDto } from './create-user.dto';
+import { CreateUserDto } from '@/user/dto';
 
 // ----------------------------------------------------------------------
 

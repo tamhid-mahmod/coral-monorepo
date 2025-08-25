@@ -3,9 +3,8 @@
 declare namespace Express {
   interface Request {
     user: {
-      // Define your user properties here
       id: string;
-      email: string;
+      name: string;
       role: string;
     };
   }

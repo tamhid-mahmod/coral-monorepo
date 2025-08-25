@@ -1,3 +1,6 @@
+import type { AuthJwtPayload } from '@/auth/types/auth-jwtPayload';
+import type { ResetTokenPayload } from '@/auth/types/reset-tokenPayload';
+
 import * as crypto from 'crypto';
 import Redis from 'ioredis';
 import { hash, verify } from 'argon2';
@@ -13,18 +16,19 @@ import {
 } from '@nestjs/common';
 
 import { REDIS } from '@/redis/redis.module';
-import { OtpService } from '@/otp/otp.service';
-import { UserService } from '@/user/user.service';
-import { CreateUserDto } from '@/user/dto/create-user.dto';
-import { VerifyUserDto } from '@/user/dto/verify-user.dto';
 
-import type { AuthJwtPayload } from './types/auth-jwtPayload';
-import type { ResetTokenPayload } from './types/reset-tokenPayload';
+import { OtpService } from '@/otp/otp.service';
+
+import { UserService } from '@/user/user.service';
+import { CreateUserDto } from '@/user/dto';
 
 import refreshConfig from './config/refresh.config';
-import { ForgotPasswordDto } from './dto/forgot-password.dto';
-import { VerifyForgotOtpDto } from './dto/verify-forgot-otp.dto';
-import { ResetPasswordDto } from './dto/reset-password.dto';
+import {
+  VerifyUserDto,
+  ResetPasswordDto,
+  ForgotPasswordDto,
+  VerifyForgotOtpDto,
+} from './dto';
 
 // ----------------------------------------------------------------------
 
@@ -53,7 +57,7 @@ export class AuthService {
     await this.otpService.sendOtpViaEmail(
       createUserDto.name,
       createUserDto.email,
-      'Email verification code',
+      'verification code',
       'email-verification',
     );
 
@@ -162,7 +166,7 @@ export class AuthService {
     await this.otpService.sendOtpViaEmail(
       user.name,
       forgotPasswordDto.email,
-      'Reset password code',
+      'reset password code',
       'forgot-password',
     );
 
@@ -216,13 +220,13 @@ export class AuthService {
 
     if (Date.now() > expiresAt) {
       await this.redis.del(resetSessionKey);
-      throw new ForbiddenException('Reset session has expired');
+      throw new ForbiddenException('Reset session has expired.');
     }
 
     const user = await this.userService.findByEmail(email);
 
     if (!user) {
-      throw new NotFoundException('Account with this email not exists!');
+      throw new NotFoundException('Account with this email not exists.');
     }
 
     // Check if new password is different from current
@@ -233,7 +237,7 @@ export class AuthService {
 
     if (isSameAsCurrent) {
       throw new ForbiddenException(
-        'New password must be different from current password!',
+        'New password must be different from current password.',
       );
     }
 
@@ -250,6 +254,6 @@ export class AuthService {
 
     // Send confirmation email
 
-    return { message: 'Password reset successfully' };
+    return { message: 'Password reset successfully.' };
   }
 }
