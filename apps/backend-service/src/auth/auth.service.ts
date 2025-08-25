@@ -154,7 +154,7 @@ export class AuthService {
     const user = await this.userService.findByEmail(forgotPasswordDto.email);
 
     if (!user) {
-      throw new NotFoundException('An account with this email not exists!');
+      throw new NotFoundException("Couldn't find your account.");
     }
 
     await this.otpService.checkRateLimit(forgotPasswordDto.email);
@@ -175,10 +175,7 @@ export class AuthService {
     const user = await this.userService.findByEmail(verifyForgotOtp.email);
 
     if (!user) {
-      return {
-        message:
-          'If an account exists with this email, you will receive a password reset OTP.',
-      };
+      throw new NotFoundException("Couldn't find your account.");
     }
 
     await this.otpService.verifyOtp(verifyForgotOtp.email, verifyForgotOtp.otp);

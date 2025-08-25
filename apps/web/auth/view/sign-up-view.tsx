@@ -1,7 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { z as zod } from "zod";
+import Link from "next/link";
+import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { useState } from "react";
 import { Loader2Icon } from "lucide-react";
@@ -27,13 +28,16 @@ import { useRouter } from "@/routes/hooks";
 
 import { Logo } from "@/components/logo";
 
+import { FormHead } from "../components/form-head";
 import { FormSocials } from "../components/form-socials";
+import { useAuthContext } from "../hooks";
+import { FormResendCode } from "../components/form-resend-code";
 import { getErrorMessage } from "../utils";
 import { signUp, verifyAccount } from "../context";
 import {
-  VerifyAccount,
-  VerifyAccountSchemaType,
-} from "../components/verify-account";
+  FormVerifyOtp,
+  type VerifyOtpSchemaType,
+} from "../components/form-verify-otp";
 
 // ----------------------------------------------------------------------
 
@@ -58,6 +62,8 @@ export const SignUpSchema = zod.object({
 
 export function SignUpView() {
   const router = useRouter();
+
+  const { checkUserSession } = useAuthContext();
 
   const showOtp = useBoolean();
   const canResend = useBoolean();
@@ -114,15 +120,15 @@ export function SignUpView() {
     }
   };
 
-  const onVerifyAccount = async (data: VerifyAccountSchemaType) => {
+  const onVerifyAccount = async (data: VerifyOtpSchemaType) => {
     if (!user) return;
 
     try {
       setErrorMessage(null);
       await verifyAccount({ ...user, ...data });
+      await checkUserSession?.();
 
-      setUser(null);
-      router.push(paths.auth.signIn);
+      router.refresh();
     } catch (error) {
       const feedbackMessage = getErrorMessage(error);
       setErrorMessage(feedbackMessage);
@@ -135,6 +141,11 @@ export function SignUpView() {
     try {
       isResendLoading.onTrue();
       await onSubmit(user);
+
+      toast.success("We’ve resent the OTP to your email.");
+    } catch (error) {
+      const feedbackMessage = getErrorMessage(error);
+      setErrorMessage(feedbackMessage);
     } finally {
       isResendLoading.onFalse();
     }
@@ -229,6 +240,12 @@ export function SignUpView() {
     </>
   );
 
+  const renderErrorMessage = !!errorMessage && (
+    <Alert variant="destructive" className="border-red-600 mb-4">
+      <AlertDescription>{errorMessage}</AlertDescription>
+    </Alert>
+  );
+
   return (
     <div className="w-full min-h-svh">
       <div className="flex flex-row">
@@ -242,13 +259,10 @@ export function SignUpView() {
 
           {!showOtp.value ? (
             <div className="sm:w-[420px]">
-              <h5 className="text-2xl font-semibold tracking-tight mb-2">
-                Create Free Account Now!
-              </h5>
-              <p className="text-sm text-gray-700 mb-4">
-                Do not want another password to remember? No problem! Sign Up
-                using one of your favourite social networks
-              </p>
+              <FormHead
+                title="Create Free Account Now!"
+                description="Do not want another password to remember? No problem! Sign Up using one of your favourite social networks"
+              />
 
               <FormSocials disabled={isSubmitting} />
 
@@ -257,11 +271,7 @@ export function SignUpView() {
                 than 60 seconds
               </p>
 
-              {!!errorMessage && (
-                <Alert variant="destructive" className="border-red-600 mb-4">
-                  <AlertDescription>{errorMessage}</AlertDescription>
-                </Alert>
-              )}
+              {renderErrorMessage}
 
               <Form {...methods}>
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
@@ -270,14 +280,26 @@ export function SignUpView() {
               </Form>
             </div>
           ) : (
-            <VerifyAccount
-              onSubmit={onVerifyAccount}
-              timer={timer}
-              canResend={canResend.value}
-              resendOtp={resendOtp}
-              resendDisabled={isResendLoading.value}
-              errorMessage={errorMessage}
-            />
+            <>
+              <FormHead
+                title="OTP verification"
+                description="We’ve sent a six-digit verification code to your email. Please enter the code to verify your account."
+              />
+
+              {renderErrorMessage}
+
+              <FormVerifyOtp
+                onSubmit={onVerifyAccount}
+                disabled={isResendLoading.value}
+              />
+
+              <FormResendCode
+                timer={timer}
+                canResend={canResend.value}
+                onResendCode={resendOtp}
+                disabled={isResendLoading.value}
+              />
+            </>
           )}
 
           <div className="mt-auto py-4">

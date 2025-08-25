@@ -6,6 +6,8 @@ import { useRouter, useSearchParams } from "@/routes/hooks";
 
 import { CONFIG } from "@/global-config";
 
+import { LoadingScreen } from "@/components/loading-screen";
+
 import { useAuthContext } from "../hooks";
 
 // ----------------------------------------------------------------------
@@ -43,7 +45,7 @@ export function GuestGuard({ children }: GuestGuardProps) {
   }, [authenticated, loading]);
 
   if (isChecking) {
-    return <p>Redirecting...</p>;
+    return <LoadingScreen />;
   }
 
   return <>{children}</>;
